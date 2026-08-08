@@ -2,6 +2,8 @@
 
 Interaktywna mapa miejsc (baza, plaże, atrakcje, rekomendacje z grupy FB).
 
-**Podgląd online:** https://rgonek.github.io/mapa-walencja/
+**Podgląd online:** http://gonek.net/mapa-walencja/
 
-Plik źródłowy w projekcie lokalnym: `mapa-walencja.html`.
+(GitHub Pages z tego repo; domena z Twojego gonek.github.io.)
+
+Plik w repo: `index.html` (kopia `mapa-walencja.html` z lokalnego projektu wakacje-2026).
