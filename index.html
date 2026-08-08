@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mapa — Walencja i okolice (wakacje 2026)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e8eef6;
+      --muted: #9aadc2;
+      --accent: #3d9cf0;
+      --border: #2a3a4f;
+      --fb: #8b9cf7;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 380px) 1fr;
+      height: 100%;
+    }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      aside { max-height: 45vh; }
+    }
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .aside-head {
+      padding: 1rem 1rem 0.5rem;
+      flex-shrink: 0;
+    }
+    h1 {
+      font-size: 1.15rem;
+      margin: 0 0 0.25rem;
+      font-weight: 650;
+    }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin: 0 0 0.75rem;
+      line-height: 1.4;
+    }
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 0.5rem;
+    }
+    .filters button {
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 0.25rem 0.65rem;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .filters button.active,
+    .filters button:hover {
+      color: var(--text);
+      border-color: var(--accent);
+      background: rgba(61, 156, 240, 0.12);
+    }
+    .list-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 0 1rem 1rem;
+      scroll-behavior: smooth;
+    }
+    .list { list-style: none; margin: 0; padding: 0; }
+    .list li {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 0.75rem;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    }
+    .list li:hover {
+      border-color: var(--accent);
+      background: rgba(61, 156, 240, 0.08);
+    }
+    .list li.focus {
+      border-color: var(--accent);
+      background: rgba(61, 156, 240, 0.14);
+      box-shadow: 0 0 0 2px rgba(61, 156, 240, 0.25);
+    }
+    .list .name { font-weight: 600; font-size: 0.92rem; }
+    .list .meta {
+      color: var(--muted);
+      font-size: 0.78rem;
+      margin-top: 0.25rem;
+      line-height: 1.4;
+    }
+    .list .quote {
+      color: #b8c8d8;
+      font-size: 0.74rem;
+      margin-top: 0.35rem;
+      line-height: 1.35;
+      font-style: italic;
+      border-left: 2px solid var(--border);
+      padding-left: 0.5rem;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.66rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      margin-right: 0.2rem;
+      margin-bottom: 0.2rem;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .badge.baza { color: #f0c14d; border-color: #6a5520; }
+    .badge.dzieci { color: #7ddea0; border-color: #2d5a40; }
+    .badge.jedzenie { color: #f0a07a; border-color: #6a3a28; }
+    .badge.miasto { color: #9bb8ff; border-color: #2e4470; }
+    .badge.plaża { color: #7ec8e8; border-color: #2a5568; }
+    .badge.wycieczka { color: #d4a8ff; border-color: #4a3568; }
+    .badge.fb { color: var(--fb); border-color: #3d4570; }
+    .mentions {
+      font-size: 0.7rem;
+      color: var(--fb);
+      margin-left: 0.25rem;
+    }
+    #map { width: 100%; height: 100%; min-height: 320px; }
+    .leaflet-popup-content-wrapper {
+      border-radius: 10px;
+      max-width: 320px;
+    }
+    .leaflet-popup-content { margin: 0.7rem 0.85rem; }
+    .popup-title { font-weight: 700; margin-bottom: 0.3rem; font-size: 0.95rem; }
+    .popup-body { font-size: 0.85rem; color: #334; line-height: 1.4; }
+    .popup-drive { font-size: 0.78rem; color: #556; margin-top: 0.35rem; }
+    .popup-quote {
+      font-size: 0.78rem;
+      color: #445;
+      margin-top: 0.4rem;
+      font-style: italic;
+      border-left: 2px solid #ccd;
+      padding-left: 0.45rem;
+      line-height: 1.35;
+    }
+    .popup-link { font-size: 0.75rem; margin-top: 0.35rem; }
+    .legend-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      padding: 0.5rem 1rem 0.85rem;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+      line-height: 1.35;
+    }
+    a { color: var(--accent); }
+    code { font-size: 0.78em; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="aside-head">
+        <h1>Walencja i okolice</h1>
+        <p class="subtitle">
+          Plan 2+1 + miejsca z <strong>8 subagentów</strong> czytających posty FB
+          (grupa walencja.es). Klik marker = dymek + scroll listy.
+        </p>
+        <div class="filters" id="filters">
+          <button type="button" data-filter="all" class="active">Wszystkie</button>
+          <button type="button" data-filter="baza">Baza</button>
+          <button type="button" data-filter="dzieci">Z dzieckiem</button>
+          <button type="button" data-filter="miasto">Miasto</button>
+          <button type="button" data-filter="plaża">Plaża</button>
+          <button type="button" data-filter="jedzenie">Jedzenie</button>
+          <button type="button" data-filter="wycieczka">Wycieczka</button>
+          <button type="button" data-filter="fb">Z FB</button>
+        </div>
+      </div>
+      <div class="list-wrap" id="listWrap">
+        <ul class="list" id="list"></ul>
+      </div>
+      <p class="legend-note">
+        ⏱ Czasy z <strong>Daimus</strong>.
+        Źródło: <code>agent_places_merged.md</code>
+        · mapa: <code>mapa-walencja.html</code>
+      </p>
+    </aside>
+    <div id="map"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script>
+    const places = [{"id": "barrio-del-carmen", "name": "Barrio del Carmen", "lat": 39.4788, "lng": -0.3795, "tags": ["baza", "miasto", "fb"], "drive": "55–70 min", "desc": "FB: serce starego miasta — super na krótki city break. Na tydzień z 4-latkiem: ostrożnie (głośno wieczorem, imprezy). recommendations.jsonl: Σ48 (posty 18 + komentarze 30), +42/−10.", "source": "fb-agents", "mentions": 48, "quote": "El Carmen – serce street artu… największe muzeum sztuki ulicznej na świeżym powietrzu", "url": "https://www.facebook.com/groups/walencja.es/posts/2738321863167801/"}, {"id": "cabanyal", "name": "Cabanyal", "lat": 39.4685, "lng": -0.3295, "tags": ["baza", "plaża", "miasto", "fb"], "drive": "60–75 min", "desc": "FB mocno: „super lokalizacja” (plaża + port, mozaiki, knajpy localsów). Przewodnik: dobra baza z dziećmi. Uwaga: bywają pytania o bezpieczeństwo latem. recommendations.jsonl: Σ47 (posty 14 + komentarze 33), +29/−9.", "source": "fb-agents", "mentions": 47, "quote": "Mieszkaliśmy w dzielnicy Cabanyal na ulicy de La Reina i uważam, że to była super lokalizacja", "url": "https://www.facebook.com/groups/walencja.es/posts/2226101451056514/"}, {"id": "puerto-de-sagunto", "name": "Puerto de Sagunto", "lat": 39.655, "lng": -0.215, "tags": ["baza", "plaża", "wycieczka", "fb"], "drive": "~50 min", "desc": "FB: plaża + baza na północ od Walencji (obok historycznego Sagunto). recommendations.jsonl: Σ37 (posty 12 + komentarze 25), +19/−10.", "source": "fb-agents", "mentions": 37, "quote": "transport... z lotniska Castellon do miejscowości Puerto de Sagunto", "url": "https://www.facebook.com/groups/walencja.es/posts/2257848104548515/"}, {"id": "ruzafa-russafa", "name": "Ruzafa / Russafa", "lat": 39.4615, "lng": -0.3735, "tags": ["baza", "miasto", "jedzenie", "fb"], "drive": "55–70 min", "desc": "FB top na nocleg w mieście: kawiarnie, knajpy, lokalne życie. Minus: hałas, drożej, daleko do plaży pieszo. recommendations.jsonl: Σ23 (posty 8 + komentarze 15), +16/−6.", "source": "fb-agents", "mentions": 35, "quote": "Dzielnice Eixample, Mont Olivete, Russafa", "url": "https://www.facebook.com/groups/walencja.es/posts/2246982635635062/"}, {"id": "cullera", "name": "Cullera", "lat": 39.1648, "lng": -0.2495, "tags": ["baza", "plaża", "wycieczka", "fb"], "drive": "30–35 min", "desc": "FB: „perełka”, plaża, oddech od zgiełku — sensowna baza poza miastem bliżej Walencji niż Daimus. Hotel Santa Marta: jedna pozytywna opinia rodzinna. recommendations.jsonl: Σ34 (posty 7 + komentarze 27), +12/−5.", "source": "fb-agents", "mentions": 34, "quote": "Cullera to perełka i miły oddech od zgiełku też uroczej Walencji. Piękna plaża, czysta woda", "url": "https://www.facebook.com/groups/walencja.es/posts/2331096403890351/"}, {"id": "pla-a-rac-cullera", "name": "Plaża Racó (Cullera)", "lat": 39.1758, "lng": -0.2415, "tags": ["baza", "plaża", "dzieci"], "drive": "30–35 min", "desc": "FB: „perełka”, plaża, oddech od zgiełku — sensowna baza poza miastem bliżej Walencji niż Daimus. Hotel Santa Marta: jedna pozytywna opinia rodzinna. recommendations.jsonl: Σ34 (posty 7 + komentarze 27), +12/−5.", "source": "plan", "mentions": 34, "quote": "Cześć szukam transportu w czwartek 2.07 z Cullera na lotnisko do Walencji dla rodzicow (2 osoby) Musz sie dostać na lotnisko do 8:30 rano Prośba o n…", "url": null}, {"id": "malvarrosa", "name": "Malvarrosa", "lat": 39.4765, "lng": -0.3245, "tags": ["baza", "plaża", "miasto", "fb"], "drive": "60–75 min", "desc": "FB: główna plaża miejska; okolica knajp/promenady. Porównywana z Cabanyal jako lokalizacja noclegu przy morzu. recommendations.jsonl: Σ32 (posty 14 + komentarze 18), +24/−3.", "source": "fb-agents", "mentions": 32, "quote": "Czytałam też o plaży Malvarossa. Jeśli ktoś ma porównanie o noclegach przy tych plażach (i o samych plażach)", "url": "https://www.facebook.com/groups/walencja.es/posts/2544927115840611/"}, {"id": "gand-a", "name": "Gandía", "lat": 38.9955, "lng": -0.1615, "tags": ["baza", "plaża", "wycieczka", "fb"], "drive": "5–10 min", "desc": "Gandía jako baza plażowa / dojazd pociągiem lub autem do Walencji. Dużo apartamentów przy plaży. recommendations.jsonl: Σ16 (posty 4 + komentarze 12), +8/−5.", "source": "fb-agents", "mentions": 23, "quote": "wybieram się do Gandii... z Walencji do Gandii... stację PKP i przystanek Platja de Gandia", "url": "https://www.facebook.com/groups/walencja.es/posts/2248133745519951/"}, {"id": "patacona", "name": "Patacona", "lat": 39.4885, "lng": -0.3235, "tags": ["baza", "plaża", "fb"], "drive": "60–75 min", "desc": "FB: częsty nocleg przy plaży miejskiej (północ). Kompromis plaża + dojazd do centrum. Hotel Resa Patacona — pytania o opinie, nie twarda rec. recommendations.jsonl: Σ22 (posty 8 + komentarze 14), +16/−4.", "source": "fb-agents", "mentions": 22, "quote": "Malvarrosa i Patacona rozwijają się turystycznie, ale nadal są ciche poza sezonem letnim", "url": "https://www.facebook.com/groups/walencja.es/posts/2846423585690961/"}, {"id": "port-saplaya", "name": "Port Saplaya", "lat": 39.5085, "lng": -0.3245, "tags": ["baza", "wycieczka", "plaża", "fb"], "drive": "~50 min", "desc": "FB: „mała Wenecja” — pastelowe domki, kanały. Raczej klimatyczny wypad/baza krótka niż tydzień z basenem. recommendations.jsonl: Σ21 (posty 2 + komentarze 19), +14/−5.", "source": "fb-agents", "mentions": 21, "quote": "Port Saplaya nazywana jest „małą Wenecją Walencji” – pastelowe domki z balkonami odbijają się w spokojnych kanałach", "url": "https://www.facebook.com/groups/walencja.es/posts/2765129917153662/"}, {"id": "playa-de-gand-a", "name": "Playa de Gandía", "lat": 38.9955, "lng": -0.1615, "tags": ["baza", "plaża"], "drive": "5–10 min", "desc": "Baza plażowa blisko Daimusa: promenada, sklepy, lody. Często w planach Walencja+Gandía (FB + X). recommendations.jsonl: Σ16 (posty 4 + komentarze 12), +8/−5.", "source": "plan", "mentions": 16, "quote": "Zapraszamy do Apartamento Layla Gandia, jesteśmy na bookingu, ale proszę pisać priv w razie pytań. Z Walencji dojazd bezpośrednio pociągie…", "url": null}, {"id": "marina-de-valencia", "name": "Marina de Valencia", "lat": 39.4625, "lng": -0.3205, "tags": ["baza", "miasto", "plaża", "fb"], "drive": "60–75 min", "desc": "Nowoczesna marina — okolica noclegów „przy porcie”; blisko Cabanyal/Malvarrosa.", "source": "fb-agents", "mentions": 10, "quote": "Spacer po porcie i marinie – nowoczesna dzielnica nadmorska, gdzie odbywało się America’s Cup", "url": "https://www.facebook.com/groups/walencja.es/posts/2717570568576264/"}, {"id": "oropesa-del-mar", "name": "Oropesa del Mar", "lat": 40.0925, "lng": 0.1345, "tags": ["baza", "plaża", "wycieczka", "fb"], "drive": "~1–1,25 h", "desc": "FB: baza/transfery na północ (Castellón). Raczej dłuższy dojazd z lotniska VLC. recommendations.jsonl: Σ10 (posty 4 + komentarze 6), +2/−0.", "source": "fb-agents", "mentions": 10, "quote": "transfer z Walencja - Oropesa del mar", "url": "https://www.facebook.com/groups/walencja.es/posts/2290447887955203/"}, {"id": "el-saler", "name": "El Saler", "lat": 39.383, "lng": -0.318, "tags": ["baza", "plaża", "wycieczka", "fb"], "drive": "45–55 min", "desc": "FB: chwalona plaża (wraz z Malvarrosa/Patacona). Baza bliżej miasta + Albufera; mniej typowych apartamentów wakacyjnych niż Safor. recommendations.jsonl: Σ7 (posty 3 + komentarze 4), +5/−0.", "source": "fb-agents", "mentions": 9, "quote": "Najlepsze: Malvarrosa, Patacona, Saler", "url": "https://www.facebook.com/groups/walencja.es/posts/2791266687873318/"}, {"id": "ensanche-eixample", "name": "Ensanche / L’Eixample", "lat": 39.4675, "lng": -0.3705, "tags": ["baza", "miasto", "fb"], "drive": "55–70 min", "desc": "FB: „elegancko i centralnie” — na liście najlepszych dzielnic na nocleg (Ruzafa, Ensanche, El Carmen, Cabanyal). Spokojniej niż Carmen. recommendations.jsonl: Σ7 (posty 5 + komentarze 2), +5/−2.", "source": "fb-agents", "mentions": 7, "quote": "Najlepsze dzielnice: Ruzafa, Ensanche, El Carmen, Cabanyal.", "url": "https://www.facebook.com/groups/walencja.es/posts/2791266687873318/"}, {"id": "moncofa", "name": "Moncofa", "lat": 39.8085, "lng": -0.1405, "tags": ["baza", "plaża", "wycieczka", "fb"], "drive": "~50 min", "desc": "FB: pojawia się jako pomysł na nocleg poza Walencją (pytania o plażę, transfery). Mniej twarde polecajki niż Cullera/Gandía. recommendations.jsonl: Σ7 (posty 2 + komentarze 5), +2/−3.", "source": "fb-agents", "mentions": 7, "quote": "padło na Moncofa, jednak pojawiło się pytanie o plaże, czy są piaszczyste czy tylko kamieniste?", "url": "https://www.facebook.com/groups/walencja.es/posts/2215391138794212/"}, {"id": "resa-patacona", "name": "Resa Patacona (akademik/hotel)", "lat": 39.4905, "lng": -0.323, "tags": ["baza", "plaża", "fb"], "drive": "60–75 min", "desc": "FB: polecany jako opcja „w stylu akademika” latem (~200 m do morza) — budżet bliżej plaży.", "source": "recommendations.jsonl", "mentions": 2, "quote": "Polecam coś w stylu akademika… Resa patacona", "url": null}, {"id": "myr-plaza", "name": "Hotel MYR Plaza & Spa", "lat": 39.473, "lng": -0.378, "tags": ["baza", "miasto", "fb"], "drive": "55–70 min", "desc": "FB: „Polecam hotel MYR Plaza and Spa w samym centrum koło Mercat Central. Wspaniały hotel, miła obsługa.”", "source": "recommendations.jsonl", "mentions": 1, "quote": "Polecam hotel MYR Plaza and Spa w samym centrum kolo Mercat Central.", "url": null}, {"id": "daimus", "name": "Daimus", "lat": 38.9685, "lng": -0.1525, "tags": ["baza", "plaża"], "drive": "Baza — start", "desc": "Wasza planowana baza: spokojna, rodzinna, plaża + basen. Grupia FB prawie nie dyskutuje Daimusa (jest „miejska”), ale z autem ma sens na tydzień 2+1.", "source": "plan", "mentions": 0, "quote": null, "url": null}, {"id": "oceanogr-fic", "name": "Oceanogràfic", "lat": 39.453, "lng": -0.3475, "tags": ["dzieci", "miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 81 wzmianek, sentyment=recommend. Wielokrotnie chwalone oceanarium; pokazy delfinów, pingwiny; rezerwować 3–6 h; bilety online; czasem łączone z Museo recommendations.jsonl: Σ147 (posty 23 + komentarze 124), +87/−14.", "source": "fb-agents", "mentions": 147, "quote": "Jeśli ktoś zastanawia się czy warto iść do Oceanarium to serio nie zastanawiajcie się bo naprawdę warto", "url": "https://www.facebook.com/groups/walencja.es/posts/2226101451056514/"}, {"id": "alicante", "name": "Alicante", "lat": 38.3452, "lng": -0.481, "tags": ["wycieczka", "fb"], "drive": "~1,5–2 h", "desc": "Agenci (czytanie postów FB): 36 wzmianek, sentyment=recommend. Częsty cel pociągiem/busem z Walencji; jedzenie + Costa Blanca; lotnisko dla południa regionu recommendations.jsonl: Σ134 (posty 16 + komentarze 118), +82/−15.", "source": "fb-agents", "mentions": 134, "quote": "Wybieramy się niedługo do Walencji i Alicante... miejsca na śniadania/obiady/kolacje", "url": "https://www.facebook.com/groups/walencja.es/posts/2248578615475464/"}, {"id": "calpe", "name": "Calpe", "lat": 38.6455, "lng": 0.0455, "tags": ["wycieczka", "plaża", "fb"], "drive": "~1,5 h", "desc": "Agenci (czytanie postów FB): 20 wzmianek, sentyment=recommend. Tydzień w Calpe + zwiedzanie; wybór Costa Blanca (z Jávea/Dénia); dojazd Calp–Walencja recommendations.jsonl: Σ62 (posty 9 + komentarze 53), +30/−1.", "source": "fb-agents", "mentions": 62, "quote": "Myślimy nad tygodniem w Calpe i zwiedzaniem okolicy", "url": "https://www.facebook.com/groups/walencja.es/posts/2223687347964591/"}, {"id": "calpe-pe-n-de-ifach", "name": "Calpe (Peñón de Ifach)", "lat": 38.6375, "lng": 0.0755, "tags": ["wycieczka", "fb"], "drive": "~1,5 h", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=recommend. 332 m skała, „mały Gibraltar”, najmniejszy rezerwat przyrody w Hiszpanii; można zdobyć lub obejść recommendations.jsonl: Σ62 (posty 9 + komentarze 53), +30/−1.", "source": "fb-agents", "mentions": 62, "quote": "Peñón de Ifach, zwana jest często Małym Gibraltarem … 332 metry … najmniejszy rezerwat przyrody w Hiszpanii", "url": "https://www.facebook.com/groups/walencja.es/posts/2873400879659898/"}, {"id": "bioparc", "name": "BIOPARC", "lat": 39.478, "lng": -0.4075, "tags": ["dzieci", "miasto", "fb"], "drive": "60–75 min", "desc": "Agenci (czytanie postów FB): 31 wzmianek, sentyment=recommend. Najpiękniejsze zoo według relacji; lemury/Madagascar; 4–5 h; ktoś radzi iść przed Oceanarium recommendations.jsonl: Σ56 (posty 7 + komentarze 49), +42/−8.", "source": "fb-agents", "mentions": 56, "quote": "Biopark – Najpiękniejsze zoo w jakim byłam", "url": "https://www.facebook.com/groups/walencja.es/posts/2250567625276563/"}, {"id": "ciudad-de-las-artes-y-las-ciencias", "name": "Ciudad de las Artes y las Ciencias", "lat": 39.4549, "lng": -0.352, "tags": ["dzieci", "miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 56 wzmianek, sentyment=recommend. Miasteczko sztuki i nauki / muzeum nauki; warto w dzień i w nocy; często w planach z Oceanografic recommendations.jsonl: Σ24 (posty 12 + komentarze 12), +17/−3.", "source": "fb-agents", "mentions": 56, "quote": "Miasto nauki i sztuki – Warto zwiedzić za dnia oraz w nocy. O każdej porze robi wrażenie", "url": "https://www.facebook.com/groups/walencja.es/posts/2289692971364028/"}, {"id": "jard-n-del-turia", "name": "Jardín del Turia", "lat": 39.47, "lng": -0.37, "tags": ["dzieci", "miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 55 wzmianek, sentyment=recommend. Park w korycie rzeki; rowery, spacery, piknik; blisko CAC; polecany rodzinom recommendations.jsonl: Σ49 (posty 15 + komentarze 34), +41/−6.", "source": "fb-agents", "mentions": 55, "quote": "Piękny park Turia... wart odwiedzenia a najlepiej na rowerze", "url": "https://www.facebook.com/groups/walencja.es/posts/2226101451056514/"}, {"id": "benidorm", "name": "Benidorm", "lat": 38.5411, "lng": -0.1225, "tags": ["wycieczka", "plaża", "fb"], "drive": "~1,5 h", "desc": "Agenci (czytanie postów FB): 17 wzmianek, sentyment=mention. Cel z auto z Walencji; baza Costa Blanca; dojazd Benidorm–Walencja; widoki z rejsu recommendations.jsonl: Σ43 (posty 5 + komentarze 38), +21/−2.", "source": "fb-agents", "mentions": 43, "quote": "chcialbym zajrzeć do Benidorm i Alicante", "url": "https://www.facebook.com/groups/walencja.es/posts/2215811258752200/"}, {"id": "albufera", "name": "Albufera", "lat": 39.3205, "lng": -0.3245, "tags": ["dzieci", "wycieczka", "fb"], "drive": "45–55 min", "desc": "Agenci (czytanie postów FB): 24 wzmianek, sentyment=recommend. Pytania o wizytę z dziećmi zimą oraz transport do pól ryżowych recommendations.jsonl: Σ38 (posty 12 + komentarze 26), +25/−15.", "source": "fb-agents", "mentions": 38, "quote": "Czy warto wybrać się o tej porze roku do Albufery? Z dziecmi 3, 6 i 8 lat?", "url": "https://www.facebook.com/groups/walencja.es/posts/2230900290576630/"}, {"id": "sagunto", "name": "Sagunto", "lat": 39.6795, "lng": -0.2765, "tags": ["wycieczka", "fb"], "drive": "~1 h", "desc": "Agenci (czytanie postów FB): 23 wzmianek, sentyment=recommend. Historyczne miasto ~25 km na północ: zamek, pociąg ~20 min do Nord; niezależne zaplecze usług recommendations.jsonl: Σ37 (posty 12 + komentarze 25), +19/−10.", "source": "fb-agents", "mentions": 37, "quote": "Sagunto to historyczny obszar zbudowany na wzgórzu wokół ruin wielkiego zamku zbudowanego przed trzema tysiącami lat.", "url": "https://www.facebook.com/groups/walencja.es/posts/2645501939116461/"}, {"id": "parque-gulliver", "name": "Parque Gulliver", "lat": 39.4605, "lng": -0.3585, "tags": ["dzieci", "miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 4 wzmianek, sentyment=recommend. Duży Guliwer do zjeżdżania; hit dla dzieci i dorosłych; w Turii recommendations.jsonl: Σ35 (posty 5 + komentarze 30), +26/−3.", "source": "fb-agents", "mentions": 35, "quote": "dla rodzin z dziećmi jest tam wielki Guliver który leży na środku i można z niego zjeżdżać", "url": "https://www.facebook.com/groups/walencja.es/posts/2226101451056514/"}, {"id": "x-tiva", "name": "Xàtiva", "lat": 38.9895, "lng": -0.5185, "tags": ["wycieczka", "fb"], "drive": "45–60 min", "desc": "Agenci (czytanie postów FB): 27 wzmianek, sentyment=recommend. Pociąg z Walencji; mniejsza miejscowość, wolniejsze tempo; zamek wart odwiedzenia recommendations.jsonl: Σ31 (posty 10 + komentarze 21), +22/−5.", "source": "fb-agents", "mentions": 31, "quote": "Szczerze zachęcam do wyrwania się chociaż na jeden dzień z Walencji i zwiedzenie okolicznych mniejszych miejscowości. My pojechaliśmy pociągiem do miasta Xativa i to było bardzo ciekawe doświadczenie.", "url": "https://www.facebook.com/groups/walencja.es/posts/2526127154387274/"}, {"id": "mercado-central", "name": "Mercado Central", "lat": 39.4736, "lng": -0.3789, "tags": ["miasto", "jedzenie", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 20 wzmianek, sentyment=recommend. Centralny rynek w planach zwiedzania; okolica katedry; spotkania turystyczne w weekend recommendations.jsonl: Σ18 (posty 7 + komentarze 11), +16/−2.", "source": "fb-agents", "mentions": 20, "quote": "Mercado Central", "url": "https://www.facebook.com/groups/walencja.es/posts/2223513674648625/"}, {"id": "altea", "name": "Altea", "lat": 38.5988, "lng": -0.0515, "tags": ["wycieczka", "fb"], "drive": "~1,5 h", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=recommend. Białe miasteczko nad morzem; ok. 130 km / 1,5–2,5 h; romantyczny dzień, zdjęcia recommendations.jsonl: Σ19 (posty 1 + komentarze 18), +15/−3.", "source": "fb-agents", "mentions": 19, "quote": "Altea – białe miasteczko nad morzem 📍 ok. 130 km … Idealne na: romantyczny dzień, zdjęcia, spokojny spacer", "url": "https://www.facebook.com/groups/walencja.es/posts/2843835495949770/"}, {"id": "alboraya-horchata", "name": "Alboraya (horchata)", "lat": 39.5005, "lng": -0.3485, "tags": ["jedzenie", "miasto", "fb"], "drive": "60–75 min", "desc": "Agenci (czytanie postów FB): 4 wzmianek, sentyment=recommend. Horchata (Daniel), El Musical, sady pomarańczowe Huerta recommendations.jsonl: Σ16 (posty 5 + komentarze 11), +4/−0.", "source": "fb-agents", "mentions": 16, "quote": "El Musical (Alboraya) – tapas i horchata w jednej wiosce", "url": "https://www.facebook.com/groups/walencja.es/posts/2741111199555534/"}, {"id": "d-nia", "name": "Dénia", "lat": 38.8408, "lng": 0.1057, "tags": ["wycieczka", "plaża", "fb"], "drive": "~1–1,5 h", "desc": "Agenci (czytanie postów FB): 13 wzmianek, sentyment=mention. Częsty cel urlopu/bazy; dojazd z Walencji; pytanie czy warto na kilka dni; okolica El Verger recommendations.jsonl: Σ16 (posty 4 + komentarze 12), +2/−0.", "source": "fb-agents", "mentions": 16, "quote": "w lipcu planujemy urlop w Denia", "url": "https://www.facebook.com/groups/walencja.es/posts/2231612957172030/"}, {"id": "el-palmar", "name": "El Palmar", "lat": 39.3125, "lng": -0.3185, "tags": ["jedzenie", "wycieczka", "fb"], "drive": "45–55 min", "desc": "Agenci (czytanie postów FB): 4 wzmianek, sentyment=recommend. Rejs po lagunie Albufera o zachodzie – polecane w relacji recommendations.jsonl: Σ16 (posty 7 + komentarze 9), +14/−2.", "source": "fb-agents", "mentions": 16, "quote": "w El Palmar, popłynęliśmy w klimatyczny rejs po lagunie o zachodzie słońca, polecam!", "url": "https://www.facebook.com/groups/walencja.es/posts/2604174406582548/"}, {"id": "katedra-miguelete", "name": "Katedra / Miguelete", "lat": 39.4758, "lng": -0.375, "tags": ["miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 16 wzmianek, sentyment=recommend. Warto; w cenie audioprzewodnik; okolica Mercado Central", "source": "fb-agents", "mentions": 16, "quote": "Katedra bardzo ciekawa, w cenie jest audioprzewodnik", "url": "https://www.facebook.com/groups/walencja.es/posts/2278858505780808/"}, {"id": "chulilla", "name": "Chulilla", "lat": 39.6565, "lng": -0.8955, "tags": ["wycieczka", "fb"], "drive": "~1 h", "desc": "Agenci (czytanie postów FB): 13 wzmianek, sentyment=recommend. Pytanie o dojazd bez auta / autobus i rozkład recommendations.jsonl: Σ5 (posty 2 + komentarze 3), +2/−0.", "source": "fb-agents", "mentions": 13, "quote": "Jak dostac sie do Chulilla bez samochodu? Czy kursuje autobus?", "url": "https://www.facebook.com/groups/walencja.es/posts/2451534918513165/"}, {"id": "j-vea", "name": "Jávea", "lat": 38.789, "lng": 0.163, "tags": ["wycieczka", "plaża", "fb"], "drive": "~1,5 h", "desc": "Agenci (czytanie postów FB): 9 wzmianek, sentyment=recommend. Rozważana jako druga baza Costa Blanca (widoki/atrakcje) obok Benidormu recommendations.jsonl: Σ13 (posty 2 + komentarze 11), +8/−0.", "source": "fb-agents", "mentions": 13, "quote": "Zastanawiam się nad Javea Denia i Calpe", "url": "https://www.facebook.com/groups/walencja.es/posts/2262074650792527/"}, {"id": "montanejos", "name": "Montanejos", "lat": 40.0695, "lng": -0.5235, "tags": ["wycieczka", "fb"], "drive": "1,5–2 h", "desc": "Agenci (czytanie postów FB): 11 wzmianek, sentyment=recommend. Pytanie o dojazd z Walencji z niemowlakiem i opłaty wstępu (źródła termalne / kanion) recommendations.jsonl: Σ12 (posty 3 + komentarze 9), +8/−4.", "source": "fb-agents", "mentions": 12, "quote": "Czy można dostać się do Montanejos z Walencji samodzielnie? ... 8-miesięczne dziecko", "url": "https://www.facebook.com/groups/walencja.es/posts/2231293157204010/"}, {"id": "plaza-de-la-virgen", "name": "Plaza de la Virgen", "lat": 39.4763, "lng": -0.3752, "tags": ["miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 12 wzmianek, sentyment=recommend. Serce starego miasta przy katedrze; kawa, zdjęcia, start spacerów", "source": "fb-agents", "mentions": 12, "quote": "zajrzyjcie na Plaza de la Virgen, Plaza de la Reina i podziwiajcie gotycką katedrę", "url": "https://www.facebook.com/groups/walencja.es/posts/2742251132774874/"}, {"id": "hemisf-ric", "name": "Hemisfèric", "lat": 39.4565, "lng": -0.3535, "tags": ["dzieci", "miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 10 wzmianek, sentyment=recommend. Kino IMAX w kompleksie; w relacji z dziećmi film o zwierzętach – okej; często w combo biletach", "source": "fb-agents", "mentions": 10, "quote": "Hemisferic - film o zwierzętach, może ciut nudny, ale dziewczyny powiedziały ze było fajnie", "url": "https://www.facebook.com/groups/walencja.es/posts/2541720222827967/"}, {"id": "pe-scola", "name": "Peñíscola", "lat": 40.359, "lng": 0.4075, "tags": ["wycieczka", "plaża", "fb"], "drive": "~2 h", "desc": "Agenci (czytanie postów FB): 9 wzmianek, sentyment=recommend. Pytanie o spokojne miasteczko na północ od Walencji na kilka dni + plaża recommendations.jsonl: Σ7 (posty 3 + komentarze 4), +6/−2.", "source": "fb-agents", "mentions": 9, "quote": "Patrzę na mapę i widzę Casablanca, Pinescola... Czy są to miasteczka, w których warto się zatrzymać na kilka dni?", "url": "https://www.facebook.com/groups/walencja.es/posts/2556496314683691/"}, {"id": "la-pepica", "name": "La Pepica", "lat": 39.4725, "lng": -0.3248, "tags": ["jedzenie", "plaża", "fb"], "drive": "60–75 min", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=recommend. Klasyczna paella z widokiem na morze przy Malvarrosie recommendations.jsonl: Σ7 (posty 1 + komentarze 6), +5/−1.", "source": "fb-agents", "mentions": 7, "quote": "Restaurante La Pepica lub Casa Carmela (paella valenciana!)", "url": "https://www.facebook.com/groups/walencja.es/posts/2750773588589295/"}, {"id": "torres-de-serranos", "name": "Torres de Serranos", "lat": 39.4792, "lng": -0.3758, "tags": ["miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 7 wzmianek, sentyment=recommend. Zabytkowe bramy w 4-dniowym planie z dziećmi", "source": "fb-agents", "mentions": 7, "quote": "Torres de serranos, bramy zabytkowe", "url": "https://www.facebook.com/groups/walencja.es/posts/2223513674648625/"}, {"id": "neco-buffet", "name": "NECO Buffet", "lat": 39.4685, "lng": -0.3655, "tags": ["jedzenie", "dzieci", "fb"], "drive": "55–70 min", "desc": "FB: all-you-can-eat buffet — polecany gdy dzieci jedzą wybiórczo (pizza/frytki vs owoce morza).", "source": "recommendations.jsonl", "mentions": 6, "quote": "Valencia All-You-Can-Eat Buffet | NECO", "url": null}, {"id": "mercado-de-col-n", "name": "Mercado de Colón", "lat": 39.4688, "lng": -0.3685, "tags": ["miasto", "jedzenie", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 5 wzmianek, sentyment=recommend. Elegancki modernistyczny targ z kawiarniami i delikatesami; jarmarki, rooftop recommendations.jsonl: Σ2 (posty 2 + komentarze 0), +2/−0.", "source": "fb-agents", "mentions": 5, "quote": "Mercado de Colón – bardziej elegancki, z kawiarniami, restauracjami i delikatesami", "url": "https://www.facebook.com/groups/walencja.es/posts/2734109320255722/"}, {"id": "caf-de-las-horas", "name": "Café de las Horas", "lat": 39.4765, "lng": -0.3765, "tags": ["jedzenie", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 4 wzmianek, sentyment=recommend. Znane miejsce na Agua de Valencia; pytanie o alternatywy (też z dziećmi, nie pub) recommendations.jsonl: Σ4 (posty 1 + komentarze 3), +4/−1.", "source": "fb-agents", "mentions": 4, "quote": "Agua de Valencia - gdzie wypije dobrą... prócz Cafe de las Horas, Nie pub, wyjście z dziećmi", "url": "https://www.facebook.com/groups/walencja.es/posts/2221464691520190/"}, {"id": "casa-carmela", "name": "Casa Carmela", "lat": 39.4808, "lng": -0.324, "tags": ["jedzenie", "miasto", "fb"], "drive": "60–75 min", "desc": "Agenci (czytanie postów FB): 4 wzmianek, sentyment=recommend. Autentyczna paella przy Malvarrosie; tapas z owocami morza; rezerwacja zalecana recommendations.jsonl: Σ3 (posty 2 + komentarze 1), +3/−0.", "source": "fb-agents", "mentions": 4, "quote": "Casa Carmela (dla fanów tapas + paelli przy plaży)… Znana z autentycznej paelli", "url": "https://www.facebook.com/groups/walencja.es/posts/2741111199555534/"}, {"id": "bocairent", "name": "Bocairent", "lat": 38.766, "lng": -0.6095, "tags": ["wycieczka", "fb"], "drive": "~1–1,25 h", "desc": "Agenci (czytanie postów FB): 3 wzmianek, sentyment=recommend. Domy w skale, średniowieczny klimat, Covetes dels Moros recommendations.jsonl: Σ2 (posty 1 + komentarze 1), +2/−0.", "source": "fb-agents", "mentions": 3, "quote": "Bocairent – miasteczko jak z filmu — Domy wykute w skale, Słynne jaskinie (Covetes dels Moros)", "url": "https://www.facebook.com/groups/walencja.es/posts/2911774249155894/"}, {"id": "morella", "name": "Morella", "lat": 40.6195, "lng": -0.1005, "tags": ["wycieczka", "fb"], "drive": "~2–2,5 h", "desc": "Agenci (czytanie postów FB): 3 wzmianek, sentyment=recommend. Prośba o organizację grupowej wycieczki (muzeum, jaskinie, monastyr, zamek)", "source": "fb-agents", "mentions": 3, "quote": "Parque D'encultural Valtorta-Gasulla, Morella ( museum + cova delwas Joseph, Monastery + castel)", "url": "https://www.facebook.com/groups/walencja.es/posts/2787924274874226/"}, {"id": "parque-de-cabecera", "name": "Parque de Cabecera", "lat": 39.4775, "lng": -0.4045, "tags": ["dzieci", "miasto", "fb"], "drive": "60–75 min", "desc": "Agenci (czytanie postów FB): 3 wzmianek, sentyment=recommend. Północny kraniec Turii: jeziorko, łódki, piknik; przy Bioparc", "source": "fb-agents", "mentions": 3, "quote": "Parque de Cabecera… zielony park z jeziorkiem, po którym można popływać łódką", "url": "https://www.facebook.com/groups/walencja.es/posts/2746246312375356/"}, {"id": "serra-calderona", "name": "Serra Calderona", "lat": 39.72, "lng": -0.48, "tags": ["wycieczka", "dzieci", "fb"], "drive": "~40–50 min", "desc": "Agenci (czytanie postów FB): 3 wzmianek, sentyment=recommend. Góry/hiking <1h od miasta; lasy i szlaki; zielona strona Walencji", "source": "fb-agents", "mentions": 3, "quote": "Popularne kierunki: • Serra Calderona • Chulilla", "url": "https://www.facebook.com/groups/walencja.es/posts/2918026361864016/"}, {"id": "utiel", "name": "Utiel", "lat": 39.5675, "lng": -1.2065, "tags": ["wycieczka", "fb"], "drive": "~1 h", "desc": "Agenci (czytanie postów FB): 3 wzmianek, sentyment=recommend. Region winiarski DO ~60–70 km; degustacje, Bobal, stare miasto Requena, festiwal cava", "source": "fb-agents", "mentions": 3, "quote": "Region Utiel-Requena… to najważniejsza okolica winna w prowincji Walencja — idealna do odkrywania winnic, tras rowerowych i degustacji", "url": "https://www.facebook.com/groups/walencja.es/posts/2817426078590712/"}, {"id": "albarrac-n", "name": "Albarracín", "lat": 40.4075, "lng": -1.444, "tags": ["wycieczka", "fb"], "drive": "~2,5–3 h", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=recommend. Różowe domy, mury średniowieczne; często wśród najpiękniejszych miasteczek Hiszpanii; ~2–3h", "source": "fb-agents", "mentions": 2, "quote": "Albarracín – jak Toskania, ale w Hiszpanii — często uznawane za jedno z najpiękniejszych miasteczek", "url": "https://www.facebook.com/groups/walencja.es/posts/2913915975608388/"}, {"id": "benic-ssim", "name": "Benicàssim", "lat": 40.055, "lng": 0.064, "tags": ["plaża", "wycieczka", "fb"], "drive": "~1 h", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=recommend. Piękne plaże, promenada, spokojniejszy klimat niż typowe kurorty (~1h15–1h30); sprawdzać rozkład powrotów", "source": "fb-agents", "mentions": 2, "quote": "🌴 Benicàssim 👉 ok. 1h15–1h30 Moje odkrycie – piękne plaże – promenada – spokojniejszy klimat niż typowe kurorty", "url": "https://www.facebook.com/groups/walencja.es/posts/2944951815838137/"}, {"id": "bu-ol", "name": "Buñol", "lat": 39.4195, "lng": -0.7905, "tags": ["wycieczka", "fb"], "drive": "~40–50 min", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=recommend. Ok. 40 km od centrum; pytanie o koszt taksówki/Uber poza miasto", "source": "fb-agents", "mentions": 2, "quote": "ile mniej więcej wyniosłaby taksówka do Bunol (ok 40km od centrum Walencji)", "url": "https://www.facebook.com/groups/walencja.es/posts/2312869949046330/"}, {"id": "calma-beach", "name": "Calma Beach", "lat": 39.4705, "lng": -0.3275, "tags": ["jedzenie", "plaża", "dzieci", "fb"], "drive": "60–75 min", "desc": "FB: Carrer de la Reina 2 — nachosy, ośmiornica, burger; menu dziecięce / pizza. Dobry punkt przy plaży/Cabanyal.", "source": "recommendations.jsonl", "mentions": 2, "quote": "Ostatnio byliśmy w Calma Beach (Carrer de la Reina, 2)… Jest menu dla dzieci, ale syn wolał pizzę.", "url": null}, {"id": "casa-baldo", "name": "Casa Baldo", "lat": 39.472, "lng": -0.376, "tags": ["jedzenie", "fb"], "drive": "55–70 min", "desc": "FB comments (jedzenie): „Restauracja casa baldo, pyszne jedzenie”.", "source": "recommendations.jsonl", "mentions": 2, "quote": "Restauracja casa baldo, pyszne jedzenie 🥘", "url": null}, {"id": "casa-monta-a", "name": "Casa Montaña", "lat": 39.4625, "lng": -0.3335, "tags": ["jedzenie", "fb"], "drive": "60–75 min", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=recommend. Jeden z najstarszych barów (od 1836), El Cabanyal; wino, anchois, croquetas recommendations.jsonl: Σ2 (posty 1 + komentarze 1), +2/−0.", "source": "fb-agents", "mentions": 2, "quote": "Casa Montaña… Jeden z najstarszych barów w Walencji (od 1836 roku!). Historyczne wnętrze, ogromny wybór win i klasyczne tapas", "url": "https://www.facebook.com/groups/walencja.es/posts/2741111199555534/"}, {"id": "coves-de-sant-josep", "name": "Coves de Sant Josep", "lat": 39.8255, "lng": -0.2385, "tags": ["wycieczka", "dzieci", "fb"], "drive": "~50–60 min", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=mention. Jaskinia – dojazd komunikacją i rezerwacja biletów", "source": "fb-agents", "mentions": 2, "quote": "Jak dostanę się komunikacją publiczną... do jaskini San Jose? Czy bilety należy rezerwować wcześniej", "url": "https://www.facebook.com/groups/walencja.es/posts/2274751502858175/"}, {"id": "cuenca", "name": "Cuenca", "lat": 40.0704, "lng": -2.1374, "tags": ["wycieczka", "fb"], "drive": "~2,5–3 h", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=recommend. Weekend: wiszące domy, skały, UNESCO — inna Hiszpania niż wybrzeże", "source": "fb-agents", "mentions": 2, "quote": "Cuenca — Słynne „wiszące domy”, skały i stare miasto wpisane na listę UNESCO. Zupełnie inna Hiszpania niż ta nad Morzem Śródziemnym.", "url": "https://www.facebook.com/groups/walencja.es/posts/2980614075605244/"}, {"id": "iglesia-de-san-nicol-s", "name": "Iglesia de San Nicolás", "lat": 39.4768, "lng": -0.3785, "tags": ["miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=recommend. „Kaplica Sykstyńska Walencji” – barokowe freski; ~7–8 €; multimedia La Luz de San Nicolás", "source": "fb-agents", "mentions": 2, "quote": "Iglesia de San Nicolás – „Kaplica Sykstyńska Walencji”… barokowymi freskami pokrywającymi całe sklepienie", "url": "https://www.facebook.com/groups/walencja.es/posts/2746246312375356/"}, {"id": "la-pilareta", "name": "La Pilareta", "lat": 39.4775, "lng": -0.3805, "tags": ["jedzenie", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=recommend. „Świątynia clóchinas” – lokalne małże (sezon maj–sierpień) recommendations.jsonl: Σ2 (posty 1 + komentarze 1), +2/−0.", "source": "fb-agents", "mentions": 2, "quote": "La Pilareta (Bar Pilar)… Ikona Walencji, znana jako „świątynia clóchinas”", "url": "https://www.facebook.com/groups/walencja.es/posts/2741111199555534/"}, {"id": "museo-fallero", "name": "Museo Fallero", "lat": 39.4585, "lng": -0.3585, "tags": ["dzieci", "miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=mention. Muzeum Fallas na liście atrakcji rodzinnych", "source": "fb-agents", "mentions": 2, "quote": "muzeum Faller", "url": "https://www.facebook.com/groups/walencja.es/posts/2223513674648625/"}, {"id": "navajas-salto-de-la-novia", "name": "Navajas / Salto de la Novia", "lat": 39.8775, "lng": -0.5065, "tags": ["wycieczka", "fb"], "drive": "~1 h", "desc": "Agenci (czytanie postów FB): 2 wzmianek, sentyment=recommend. Wodospad na rzece Palancia w Navajas (~60–70 km); pociąg Nord→Navajas/Segorbe lub auto ~1h; spacer, punkt widokowy, opcjonalnie kąpiele", "source": "fb-agents", "mentions": 2, "quote": "🌊 Salto de la Novia — jak tam dojechać i co robić […] wodospad i punkt widokowy w małym miasteczku Navajas. […] Od Walencji: ok. 60–70 km […] Czy warto? Tak, jeśli chcesz łatwy wypad na naturę", "url": "https://www.facebook.com/groups/walencja.es/posts/2977527179247267/"}, {"id": "pizcueta-14", "name": "Bar Pizcueta 14", "lat": 39.4725, "lng": -0.3755, "tags": ["jedzenie", "fb"], "drive": "55–70 min", "desc": "FB: „Najlepsza tortilla w barze Pizcueta 14”; w tym samym wątku: Vive Vino (wino/tapas).", "source": "recommendations.jsonl", "mentions": 1, "quote": "Najlepsza tortilla w barze Pizcueta 14, świetne wino naturalne i tapas w vive vino…", "url": null}, {"id": "cala-moraig", "name": "Cala Moraig", "lat": 38.7325, "lng": 0.1665, "tags": ["wycieczka", "plaża", "fb"], "drive": "~1,5 h", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=mention. Młoda para planuje jednodniowy wypad na ładniejsze plaże (np. okolice Cala Moraig); auto na 1 dzień", "source": "fb-agents", "mentions": 1, "quote": "bardzo bym chciała w jeden dzień wyskoczyć gdzieś dalej, np w okolice cala moraig, czy inne ładniejsze plaże", "url": "https://www.facebook.com/groups/walencja.es/posts/2860632474270072/"}, {"id": "canet-d-en-berenguer", "name": "Canet d'En Berenguer", "lat": 39.6785, "lng": -0.2185, "tags": ["plaża", "wycieczka", "fb"], "drive": "~45–55 min", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=mention. Cel transferu z lotniska Walencja", "source": "fb-agents", "mentions": 1, "quote": "transport z lotniska Walencja… do Canet de Berenguer 5 osob", "url": "https://www.facebook.com/groups/walencja.es/posts/2982163932116925/"}, {"id": "chelva-pe-a-cortada", "name": "Chelva / Peña Cortada", "lat": 39.7485, "lng": -0.9975, "tags": ["wycieczka", "fb"], "drive": "~1 h", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=recommend. Na liście planowanych jednodniowych wypadów autem z Walencji (wraz z Xàtiva, Chulilla, Sagunto)", "source": "fb-agents", "mentions": 1, "quote": "Na liście są już Zamek w Xátiva, Pena cortada Chelva, Chulilla Wiszące mosty i Sagunto. Co jeszcze?", "url": "https://www.facebook.com/groups/walencja.es/posts/2878115035855149/"}, {"id": "guadalest", "name": "Guadalest", "lat": 38.6765, "lng": -0.1985, "tags": ["wycieczka", "fb"], "drive": "~1,75 h", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=recommend. Duża liczba muzeów na małej przestrzeni – wyjątkowa atrakcja turystyczna", "source": "fb-agents", "mentions": 1, "quote": "Guadalest to jedno z nielicznych miejsc, które wyróżnia się tak dużą liczbą muzeów na bardzo małej przestrzeni", "url": "https://www.facebook.com/groups/walencja.es/posts/2943125239354128/"}, {"id": "lonja-de-la-seda", "name": "Lonja de la Seda", "lat": 39.4744, "lng": -0.3784, "tags": ["miasto", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=recommend. Zabytek UNESCO; dawne centrum handlu jedwabiem XV–XVI w.", "source": "fb-agents", "mentions": 1, "quote": "Lonja de la Seda – Dziś to jeden z najpiękniejszych zabytków miasta i obiekt wpisany na listę UNESCO.", "url": "https://www.facebook.com/groups/walencja.es/posts/3019348845065100/"}, {"id": "requena", "name": "Requena", "lat": 39.4885, "lng": -1.1005, "tags": ["wycieczka", "fb"], "drive": "~1 h", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=recommend. Stare miasto, podziemne piwnice, lokalna kuchnia, bez masowej turystyki", "source": "fb-agents", "mentions": 1, "quote": "Requena – podziemne piwnice i klimat historii — stare miasto + winiarska tradycja", "url": "https://www.facebook.com/groups/walencja.es/posts/2916009312065721/"}, {"id": "viveros-jardines-del-real", "name": "Viveros / Jardines del Real", "lat": 39.4795, "lng": -0.3655, "tags": ["miasto", "dzieci", "fb"], "drive": "55–70 min", "desc": "Agenci (czytanie postów FB): 1 wzmianek, sentyment=recommend. Park z alejkami pachnącymi pomarańczami (azahar)", "source": "fb-agents", "mentions": 1, "quote": "Jardines del Real (Viveros) – elegancki park z alejkami pachnącymi kwiatami pomarańczy", "url": "https://www.facebook.com/groups/walencja.es/posts/2770395883293732/"}];
+
+    const tagColors = {
+      baza: "#f0c14d",
+      dzieci: "#7ddea0",
+      miasto: "#9bb8ff",
+      plaża: "#7ec8e8",
+      jedzenie: "#f0a07a",
+      wycieczka: "#d4a8ff",
+      fb: "#8b9cf7"
+    };
+
+    const map = L.map("map").setView([39.15, -0.28], 9);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const markers = {};
+    const listItems = {};
+    let activeFilter = "all";
+    let focusId = null;
+
+    function primaryTag(tags) {
+      const order = ["baza", "dzieci", "jedzenie", "plaża", "miasto", "wycieczka", "fb"];
+      return order.find((t) => tags.includes(t)) || tags[0];
+    }
+
+    function markerIcon(tags, focused) {
+      const color = tagColors[primaryTag(tags)] || "#3d9cf0";
+      const size = focused ? 20 : 16;
+      return L.divIcon({
+        className: "",
+        html: `<div style="
+          width:${size}px;height:${size}px;border-radius:50%;
+          background:${color};border:2px solid #fff;
+          box-shadow:0 1px 4px rgba(0,0,0,.45);
+        "></div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+        popupAnchor: [0, -size / 2]
+      });
+    }
+
+    function popupHtml(p) {
+      let html = `<div class="popup-title">${escapeHtml(p.name)}</div>`;
+      html += `<div class="popup-body">${escapeHtml(p.desc)}</div>`;
+      html += `<div class="popup-drive">⏱ Z Daimus: ${escapeHtml(p.drive)}`;
+      if (p.mentions) html += ` · FB: ${p.mentions} wzmianek`;
+      html += `</div>`;
+      if (p.quote) {
+        html += `<div class="popup-quote">${escapeHtml(truncate(p.quote, 220))}</div>`;
+      }
+      if (p.url) {
+        html += `<div class="popup-link"><a href="${escapeAttr(p.url)}" target="_blank" rel="noopener">Post na FB</a></div>`;
+      }
+      return html;
+    }
+
+    function escapeHtml(s) {
+      return String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function escapeAttr(s) {
+      return escapeHtml(s).replace(/'/g, "&#39;");
+    }
+    function truncate(s, n) {
+      s = String(s || "");
+      return s.length > n ? s.slice(0, n - 1) + "…" : s;
+    }
+
+    function focusPlace(id, fromMap) {
+      focusId = id;
+      const p = places.find((x) => x.id === id);
+      if (!p) return;
+
+      places.forEach((pl) => {
+        if (markers[pl.id]) {
+          markers[pl.id].setIcon(markerIcon(pl.tags, pl.id === id));
+        }
+      });
+
+      if (markers[id]) {
+        if (fromMap) {
+          markers[id].openPopup();
+        } else {
+          map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12), { animate: true });
+          markers[id].openPopup();
+        }
+      }
+
+      renderList();
+      requestAnimationFrame(() => {
+        const el = listItems[id];
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      });
+    }
+
+    places.forEach((p) => {
+      const m = L.marker([p.lat, p.lng], { icon: markerIcon(p.tags, false) })
+        .bindPopup(popupHtml(p), { maxWidth: 320, autoPan: true });
+      m.on("click", () => focusPlace(p.id, true));
+      markers[p.id] = m;
+      m.addTo(map);
+    });
+
+    const daimus = places.find((p) => p.id === "daimus");
+    const ocean = places.find((p) => (p.id || "").includes("oceanog"));
+    if (daimus && ocean) {
+      L.polyline(
+        [[daimus.lat, daimus.lng], [ocean.lat, ocean.lng]],
+        { color: "#3d9cf0", weight: 2, opacity: 0.4, dashArray: "6 8" }
+      ).addTo(map);
+    }
+
+    function matchesFilter(p) {
+      if (activeFilter === "all") return true;
+      if (activeFilter === "fb") return p.source !== "plan" || p.mentions > 0 || (p.tags || []).includes("fb");
+      return (p.tags || []).includes(activeFilter);
+    }
+
+    function renderList() {
+      const list = document.getElementById("list");
+      list.innerHTML = "";
+      Object.keys(listItems).forEach((k) => delete listItems[k]);
+
+      places.filter(matchesFilter).forEach((p) => {
+        const li = document.createElement("li");
+        li.dataset.id = p.id;
+        if (p.id === focusId) li.classList.add("focus");
+        const tags = [...(p.tags || [])];
+        if (p.mentions > 0 && !tags.includes("fb")) tags.push("fb");
+        const badges = tags
+          .map((t) => `<span class="badge ${t}">${t}</span>`)
+          .join("");
+        const mBadge = p.mentions
+          ? `<span class="mentions">×${p.mentions}</span>`
+          : "";
+        let html = `<div>${badges}</div>`;
+        html += `<div class="name">${escapeHtml(p.name)}${mBadge}</div>`;
+        html += `<div class="meta">${escapeHtml(p.drive)} · ${escapeHtml(p.desc)}</div>`;
+        if (p.quote) {
+          html += `<div class="quote">${escapeHtml(truncate(p.quote, 160))}</div>`;
+        }
+        li.innerHTML = html;
+        li.addEventListener("click", () => focusPlace(p.id, false));
+        list.appendChild(li);
+        listItems[p.id] = li;
+      });
+
+      places.forEach((p) => {
+        const m = markers[p.id];
+        if (!m) return;
+        if (matchesFilter(p)) {
+          if (!map.hasLayer(m)) m.addTo(map);
+        } else {
+          if (map.hasLayer(m)) map.removeLayer(m);
+        }
+      });
+    }
+
+    document.getElementById("filters").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-filter]");
+      if (!btn) return;
+      activeFilter = btn.dataset.filter;
+      document.querySelectorAll("#filters button").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+      });
+      renderList();
+    });
+
+    renderList();
+    const bounds = L.latLngBounds(places.map((p) => [p.lat, p.lng]));
+    map.fitBounds(bounds.pad(0.08));
+  </script>
+</body>
+</html>
